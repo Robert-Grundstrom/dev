@@ -4,7 +4,6 @@ MNTPATH="/var/www/html/centos$VERSION"
 MNTDEST="/var/www/html"
 DKIMAGE="centos:repo"
 DKNAME="centos-docker"
-DKFILE="centos-docker"
 SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
 WORKDIR=$(pwd)
 
