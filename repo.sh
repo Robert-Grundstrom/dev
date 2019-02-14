@@ -12,11 +12,13 @@ WORKDIR=$(pwd)
 # Create docker file for CentOS. #
 # ############################## #
 function centos_docker () {
-echo "FROM $DISTRIB:$VERSION" > $WORKDIR/$DKNAME
-echo "" >> $WORKDIR/$DKNAME
-echo "RUN yum install -y yum-utils epel-release createrepo" >> $WORKDIR/$DKNAME
-echo "RUN yum install -y $SALTREPO" >> $WORKDIR/$DKNAME
-echo "RUN rpm --import /etc/pki/rpm-gpg/*" >> $WORKDIR/$DKNAME
+cat <<EOT>> $WORKDIR/$DKNAME
+FROM $DISTRIB:$VERSION
+RUN yum install -y yum-utils epel-release createrepo
+RUN yum install -y $CENTOS_SALTREPO
+RUN rpm --import /etc/pki/rpm-gpg/*
+RUN yum -y update
+EOT
 }
 
 # ############################ #
@@ -33,30 +35,32 @@ function centos_repo () {
 # Create docker file for Ubuntu. #
 # ############################## #
 function ubuntu_docker () {
-echo "FROM $DISTRIB:$VERSION" > $WORKDIR/$DKNAME
-echo "" >> $WORKDIR/$DKNAME
-echo "ADD $UBUNTU_SALTREPO/SALTSTACK-GPG-KEY.pub /tmp/SALTSTACK-GPG-KEY.pub" >> $WORKDIR/$DKNAME
-echo "RUN sudo apt-key add /tmp/SALTSTACK-GPG-KEY.pub" >> $WORKDIR/$DKNAME
-
 case $VERSION in
 14.04)
-  echo 'RUN echo "deb '$UBUNTU_SALTREPO' thrusty main" > /etc/apt/source.list.d/saltstack-latest' >> $WORKDIR/$DKNAME
+  DISTNAME="thrusty"
   ;;
 16.04)
-  echo 'RUN echo "deb '$UBUNTU_SALTREPO' xenial main" > /etc/apt/source.list.d/saltstack-latest' >> $WORKDIR/$DKNAME
+  DISTNAME="xenial"
   ;;
 18.04)
-  echo 'RUN echo "deb '$UBUNTU_SALTREPO' bionic main" > /etc/apt/source.list.d/saltstack-latest' >> $WORKDIR/$DKNAME
+  DISTNAME="bionic"
   ;;
 *)
   echo "Warning unknown version!"
+  echo "Avaible versions are 14.04, 16.04, 18.04"
   exit 1
   ;;
 esac
 
-echo "RUN apt update" >> $WORKDIR/$DKNAME
-echo "RUN apt -y intstall apt-mirror" >> $WORKDIR/$DKNAME
-echo "RUN apt -y upgrade" >> $WORKDIR/$DKNAME
+cat <<EOT>> $WORKDIR/$DKNAME
+FROM $DISTRIB:$VERSION
+RUN echo "deb $UBUNTU_SALTREPO $DISTNAME main" > /etc/apt/source.list.d/saltstack-latest
+ADD $UBUNTU_SALTREPO/SALTSTACK-GPG-KEY.pub /tmp/SALTSTACK-GPG-KEY.pub
+RUN apt-key add /tmp/SALTSTACK-GPG-KEY.pub
+RUN apt update
+RUN apt -y intstall apt-mirror
+RUN apt -y upgrade
+EOT
 }
 
 # ################### #
@@ -70,7 +74,7 @@ docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
 
 # Create our repositorys.
 case $DISTRIB in
-ubuntu)
+  ubuntu)
 
   ;;
 centos)
@@ -83,6 +87,7 @@ centos)
   ;;
 *)
   echo "Warning unknown distribution!"
+  echo "Avaible destributions is centos or ubuntu"
   exit 1
   ;;
 esac
