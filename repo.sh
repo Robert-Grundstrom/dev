@@ -12,6 +12,20 @@ WORKDIR=$(pwd)
 # Create docker file for CentOS. #
 # ############################## #
 function centos_docker () {
+case $VERSION in
+  6)
+    continue
+  ;;
+  7)
+    continue
+  ;;
+  *)
+    echo "Warning unknown version!"
+    echo "Avaible versions for centos is 6, 7"
+    exit 1
+  ;;
+esac
+
 cat <<EOT>> $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
 RUN yum install -y yum-utils epel-release createrepo
@@ -36,19 +50,19 @@ function centos_repo () {
 # ############################## #
 function ubuntu_docker () {
 case $VERSION in
-14.04)
-  DISTNAME="thrusty"
+  14.04)
+    DISTNAME="thrusty"
   ;;
-16.04)
-  DISTNAME="xenial"
+  16.04)
+    DISTNAME="xenial"
   ;;
-18.04)
-  DISTNAME="bionic"
+  18.04)
+    DISTNAME="bionic"
   ;;
-*)
-  echo "Warning unknown version!"
-  echo "Avaible versions are 14.04, 16.04, 18.04"
-  exit 1
+  *)
+    echo "Warning unknown version!"
+    echo "Avaible versions for ubuntu is 14.04, 16.04, 18.04"
+    exit 1
   ;;
 esac
 
@@ -75,20 +89,20 @@ docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
 # Create our repositorys.
 case $DISTRIB in
   ubuntu)
-
+# WIP e.g. insert code here!
   ;;
-centos)
-  centos_repo base
-  centos_repo centosplus
-  centos_repo extras
-  centos_repo updates
-  centos_repo epel
-  centos_repo salt-latest
+  centos)
+    centos_repo base
+    centos_repo centosplus
+    centos_repo extras
+    centos_repo updates
+    centos_repo epel
+    centos_repo salt-latest
   ;;
-*)
-  echo "Warning unknown distribution!"
-  echo "Avaible destributions is centos or ubuntu"
-  exit 1
+  *)
+    echo "Warning unknown distribution!"
+    echo "Avaible destributions is centos, ubuntu"
+    exit 1
   ;;
 esac
 
