@@ -1,10 +1,7 @@
 DISTRIB=$1
 VERSION=$2
-MNTDEST="/var/www/html"
 DKIMAGE="$DISTRIB:repo"
 DKNAME="$DISTRIB-docker"
-CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
-UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/$VERSION/latest"
 WORKDIR=$(pwd)
 
 # ########################### #
@@ -12,20 +9,25 @@ WORKDIR=$(pwd)
 # ########################### #
 function check_version () {
 case "$DISTRIB.$VERSION" in
-  centos.6)
-    echo "OK" > /dev/null
-  ;;
-  centos.7)
-    echo "OK" > /dev/null
+  centos.[6-7])
+    CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
+    MNTPATH="/var/www/html/$DISTRIB/$VERSION"
+    MNTDEST="/var/www/html"
   ;;
   ubuntu.14.04)
     DISTNAME="thrusty"
+    UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/$VERSION/latest"
+    MNTDEST="/var/www/html"
   ;;
   ubuntu.16.04)
     DISTNAME="xenial"
+    UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/$VERSION/latest"
+    MNTDEST="/var/www/html"
   ;;
   ubuntu.18.04)
     DISTNAME="bionic"
+    UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/$VERSION/latest"
+    MNTDEST="/var/www/html"
   ;;
   *)
 cat << EOF
@@ -50,8 +52,7 @@ esac
 # Create docker file for CentOS. #
 # ############################## #
 function centos_docker () {
-MNTPATH="/var/www/html/$DISTRIB/$VERSION"
-mkdir -p $MNTPATH 1&2> /dev/null
+mkdir -p $MNTPATH
 cat << EOT >> $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
 RUN yum install -y yum-utils epel-release createrepo
@@ -67,13 +68,8 @@ EOT
 function centos_repo () {
    REPOID=$1
    docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$MNTDEST/
-}
-
-function centos_clean_build () {
-    docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 3 '$MNTDEST')'
-    docker exec $DKNAME createrepo -g $MNTDEST/base/comps.xml $MNTDEST
-    docker exec $DKNAME mkdir -p $MNTDEST/rpm-gpg/
-    docker exec $DKNAME cp -r /etc/pki/rpm-gpg/* $MNTDEST/rpm-gpg/
+   docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 3 '$MNTDEST/$REPOID')'
+   docker exec $DKNAME createrepo -g $MNTDEST/base/comps.xml $MNTDEST/$REPOID
 }
 
 # ############################## #
@@ -95,7 +91,8 @@ EOT
 # Script starts here. #
 # ################### #
 
-# Move to our work directory and check syntax.
+# Move to our work directory and check syntax
+# and set variables.
 cd $WORKDIR
 check_version
 
@@ -118,7 +115,6 @@ case $DISTRIB in
     centos_repo updates
     centos_repo epel
     centos_repo salt-latest
-    centos_clean_build
   ;;
 esac
 
