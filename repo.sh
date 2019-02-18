@@ -11,7 +11,8 @@ function check_version () {
 case "$DISTRIB.$VERSION" in
   centos.[6-7])
     CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
-    MNTPATH="/var/www/html/$DISTRIB/$VERSION"
+    CENTOS_PERCONA="https://repo.percona.com/yum/percona-release-latest.noarch.rpm"
+    MNTPATH="/var/www/html/"
     MNTDEST="/var/www/html"
   ;;
   ubuntu.14.04)
@@ -39,7 +40,6 @@ this script is:
 - ubuntu 18.04
 - centos 6
 - centos 7
-
 command syntax:
 ./create-repo <distribution> <version>
 EOF
@@ -56,7 +56,7 @@ mkdir -p $MNTPATH
 cat << EOT >> $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
 RUN yum install -y yum-utils epel-release createrepo
-RUN yum install -y $CENTOS_SALTREPO
+RUN yum install -y $CENTOS_SALTREPO $CENTOS_PERCONA
 RUN rpm --import /etc/pki/rpm-gpg/*
 RUN yum -y update
 EOT
@@ -67,7 +67,8 @@ EOT
 # ############################ #
 function centos_repo () {
    REPOID=$1
-   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$MNTDEST/
+   DPATH=$2
+   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$DPATH
    docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 3 '$MNTDEST/$REPOID')'
    docker exec $DKNAME createrepo -g $MNTDEST/base/comps.xml $MNTDEST/$REPOID
 }
@@ -99,8 +100,6 @@ check_version
 # Build the docker file for our docker image.
 $DISTRIB"_docker"
 docker build -t $DKIMAGE -f $DKNAME .
-
-# Run our priviously build docker container.
 docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
 
 # Create our repositorys.
@@ -109,12 +108,17 @@ case $DISTRIB in
 # WIP e.g. insert code here!
   ;;
   centos)
-    centos_repo base
-    centos_repo centosplus
-    centos_repo extras
-    centos_repo updates
-    centos_repo epel
-    centos_repo salt-latest
+    DPATH="/$MNTDEST/$DISTRIB/$VERSION/"
+#    centos_repo base $DPATH
+#    centos_repo centosplus $DPATH
+#    centos_repo extras $DPATH
+#    centos_repo updates $DPATH
+#    centos_repo epel $DPATH
+
+    DPATH="/$MNTDEST/$DISTRIB/"
+    centos_repo salt-latest $DPATH/salt
+    centos_repo percona-release-x86_64 $DPATH/percona
+    centos_repo percona-release-noarch $DPATH/percona
   ;;
 esac
 
