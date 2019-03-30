@@ -1,17 +1,18 @@
 DISTRIB=$1
 VERSION=$2
-DKIMAGE="$DISTRIB:repo"
-DKNAME="'$DISTRIB''$VERSION'-docker"
+DKIMAGE=$DISTRIB$VERSION":repo"
+DKNAME=$DISTRIB$VERSION"-docker"
 WORKDIR="/opt/os/scripts"
+
 
 # ########################### #
 # Check script compability.   #
 # ########################### #
 function check_comp () {
 case "$DISTRIB.$VERSION" in
+
   centos.[6-7])
     CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
-    CENTOS_PERCONA="https://repo.percona.com/yum/percona-release-latest.noarch.rpm"
     MNTPATH="/opt/os/mirror/"
     MNTDEST="/var/www/html"
   ;;
@@ -20,8 +21,8 @@ case "$DISTRIB.$VERSION" in
     DISTNAME="bionic"
     VERSION="18.04"
     UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/18.04/amd64/latest"
-    MNTDEST="/var/spool/apt-mirror"
-    MNTPATH="/opt/os/mirror/ubuntu"
+    MNTDEST="/var/spool"
+    MNTPATH="/opt/os/mirror"
   ;;
 
   *)
@@ -40,16 +41,30 @@ exit 1
 esac
 }
 
+
 # ############################## #
 # Create docker file for CentOS. #
 # ############################## #
 function centos_docker () {
 cat << EOT > $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
-RUN yum install -y yum-utils rsync epel-release createrepo $CENTOS_SALTREPO $CENTOS_PERCONA \
-&& rpm --import /etc/pki/rpm-gpg/* && yum clean all && yum -y update
+RUN yum install -y yum-utils rsync epel-release createrepo $CENTOS_SALTREPO
+RUN rpm --import /etc/pki/rpm-gpg/*
+RUN yum clean all && yum -y update
 EOT
 }
+
+
+# ################### #
+# Build docker image. #
+# ################### #
+function build_docker () {
+  SECONDS=0
+  echo -n "Building docker image..."
+  docker build -q -t $DKIMAGE -f $DKNAME .
+  take_time
+}
+
 
 # ############################ #
 # Build our centos repository. #
@@ -71,11 +86,40 @@ function centos_repo () {
 function ubuntu_docker () {
 cat << EOT > $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
-RUN apt -y update && apt -y install apt-utils apt-mirror gnupg wget vim && apt -y upgrade
+RUN apt -y update && apt -y install apt-utils apt-mirror gnupg wget && apt -y upgrade
+RUN mkdir -p $MNTDEST/apt-mirror $MNTDEST/salt-latest
 ADD $UBUNTU_SALTREPO/SALTSTACK-GPG-KEY.pub /tmp/SALTSTACK-GPG-KEY.pub
 RUN apt-key add /tmp/SALTSTACK-GPG-KEY.pub
-COPY $WORKDIR/ubuntu-mirror.list /etc/apt/mirror.list
+COPY ./ubuntu-mirror.list /etc/apt/mirror.list
 EOT
+}
+
+
+# ############################## #
+# Create salt-stack repo Ubuntu. #
+# ############################## #
+function ubuntu_repo () {
+  SECONDS=0
+  echo "# ######################## #"
+  echo "# Fetching Ubuntu repos... #"
+  echo "# ######################## #"
+  docker run -v $MNTPATH/ubuntu:$MNTDEST/apt-mirror -v $MNTPATH/ubuntu-salt:$MNTDEST/ubuntu-salt --name $DKNAME -t -d $DKIMAGE
+  docker exec $DKNAME apt-mirror
+  take_time
+
+  SECONDS=0
+  echo "# ########################### #"
+  echo "# Fetching Saltstack repos... #"
+  echo "# ########################### #"
+  URL="https://repo.saltstack.com/apt/ubuntu"
+  SALTMNT=$MNTDEST"/ubuntu-salt"
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/12.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/12.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/14.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/14.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/16.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/16.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/18.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/18.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup /var/spool/apt-mirror/var/clean.sh'
+  docker exec $DKNAME /bin/sh -c 'wait'
+  take_time
 }
 
 
@@ -87,14 +131,32 @@ if (( $SECONDS > 3600 )) ; then
     let "hours=SECONDS/3600"
     let "minutes=(SECONDS%3600)/60"
     let "seconds=(SECONDS%3600)%60"
-    echo "Completed in $hours hour(s), $minutes minute(s) and $seconds second(s)"
+    echo -e "Completed in $hours hour(s), $minutes minute(s) and $seconds second(s)\n\n\n"
 elif (( $SECONDS > 60 )) ; then
     let "minutes=(SECONDS%3600)/60"
     let "seconds=(SECONDS%3600)%60"
-    echo "Completed in $minutes minute(s) and $seconds second(s)"
+    echo -e "Completed in $minutes minute(s) and $seconds second(s)\n\n\n"
 else
-    echo "Completed in $SECONDS seconds"
+    echo -e "Completed in $SECONDS seconds\n\n\n"
 fi
+}
+
+
+# ######### #
+# Clean up. #
+# ######### #
+function do_cleanup () {
+  SECONDS=0
+  echo "# ################################## #"
+  echo "# Setting user and file permissions. #"
+  echo "# ################################## #"
+  find /opt/os/mirror/ -type d -print0 | xargs -0 chmod 655
+  find /opt/os/mirror/ -type f -print0 | xargs -0 chmod 644
+  chown -R root: /opt/os/mirror/*
+  docker stop $DKNAME
+  docker system prune -f --all
+  rm -f $WORKDIR/$DKNAME
+  take_time
 }
 
 
@@ -103,22 +165,21 @@ fi
 # ################### #
 cd $WORKDIR
 check_comp
-$DISTRIB"_docker"
-
-docker build -t $DKIMAGE -f $DKNAME .
-docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
 
 # Create our repositorys.
 case $DISTRIB in
 
   ubuntu)
-    SECONDS=0
-    docker exec $DKNAME apt-mirror
-    take_time
+    ubuntu_docker
+    build_docker
+    ubuntu_repo
   ;;
 
   centos)
+    centos_docker
+    build_docker
     SECONDS=0
+    docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
     DPATH="/var/www/html/centos/$VERSION"
     mkdir -p $DPATH
 
@@ -128,10 +189,6 @@ case $DISTRIB in
     centos_repo extras $DPATH
     centos_repo updates $DPATH
     centos_repo epel $DPATH
-
-    # Download percona repo
-#    centos_repo percona-release-noarch $DPATH
-#    centos_repo percona-release-x86_64 $DPATH
 
     # Download salt-stack repo.
     centos_repo salt-latest $DPATH
@@ -144,6 +201,4 @@ case $DISTRIB in
 esac
 
 # Clean up dockers and files.
-docker stop $DKNAME
-docker system prune -f --all
-rm -f $WORKDIR/$DKNAME
+do_cleanup
