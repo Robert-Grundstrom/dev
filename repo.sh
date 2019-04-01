@@ -1,9 +1,18 @@
-DISTRIB=$1
-VERSION=$2
-DKIMAGE=$DISTRIB$VERSION":repo"
-DKNAME=$DISTRIB$VERSION"-docker"
-WORKDIR="/opt/os/scripts"
+#!/bin/bash
+# Variables
+DISTRIB=$1                                      # Distribution
+VERSION=$2                                      # Version
+DKIMAGE=$DISTRIB$VERSION":repo"                 # Docker Image name
+DKNAME=$DISTRIB$VERSION"-docker"                # Docker file name
+WORKDIR="/opt/os/scripts"                       # Script location
+UBUNTU_MNTDIR="/var/spool/apt-mirror/"          # Were Ubuntu downloads its repos
+UBUNTU_SALTDIR="/var/spool/ubuntu-salt/"        # Ubuntu Saltstack repo download
+CENTOS_MNTDIR="/var/www/html/centos/"           # Were CentOS downloads its repos
+HOST_MNTDIR="/opt/os/mirror/"                   # Mount point on the host.
 
+# Salt stack URLs
+CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
+UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/18.04/amd64/latest"
 
 # ########################### #
 # Check script compability.   #
@@ -12,17 +21,12 @@ function check_comp () {
 case "$DISTRIB.$VERSION" in
 
   centos.[6-7])
-    CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
-    MNTPATH="/opt/os/mirror/"
-    MNTDEST="/var/www/html"
+    echo "Building $DISTRIB $VERSION."
   ;;
 
   ubuntu.all)
-    DISTNAME="bionic"
-    VERSION="18.04"
-    UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/18.04/amd64/latest"
-    MNTDEST="/var/spool"
-    MNTPATH="/opt/os/mirror"
+    echo "Building $DISTRIB $VERSION."
+    echo "Using ubuntu-mirror.list config in script folder."
   ;;
 
   *)
@@ -70,13 +74,19 @@ function build_docker () {
 # Build our centos repository. #
 # ############################ #
 function centos_repo () {
-   REPOID=$1
-   DPATH=$2
-   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$DPATH
+   REPOID=$1            # What repository to download.
+   DOWNLAOD_DIR=$2      # Download path for the docker.
+
+   # Tell docker image to download the repository.
+   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$DOWNLAOD_DIR
    echo ""
-   docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 5 '$DPATH/$REPOID') 2>&1 /dev/null'
-   touch $DPATH/$REPOID/comps.xml
-   docker exec $DKNAME createrepo -g comps.xml $DPATH/$REPOID
+
+   # Clean up of old packets if needed.
+   docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 5 '$DOWNLAOD_DIR/$REPOID') 2>&1 /dev/null'
+
+   # Build the repository
+   touch $DOWNLAOD_DIR/$REPOID/comps.xml
+   docker exec $DKNAME createrepo -g comps.xml $DOWNLAOD_DIR/$REPOID
 }
 
 
@@ -85,7 +95,7 @@ function centos_repo () {
 # ############################## #
 function ubuntu_docker () {
 cat << EOT > $WORKDIR/$DKNAME
-FROM $DISTRIB:$VERSION
+FROM ubuntu:18.04
 RUN apt -y update && apt -y install apt-utils apt-mirror gnupg wget && apt -y upgrade
 RUN mkdir -p $MNTDEST/apt-mirror $MNTDEST/salt-latest
 ADD $UBUNTU_SALTREPO/SALTSTACK-GPG-KEY.pub /tmp/SALTSTACK-GPG-KEY.pub
@@ -103,7 +113,7 @@ function ubuntu_repo () {
   echo "# ######################## #"
   echo "# Fetching Ubuntu repos... #"
   echo "# ######################## #"
-  docker run -v $MNTPATH/ubuntu:$MNTDEST/apt-mirror -v $MNTPATH/ubuntu-salt:$MNTDEST/ubuntu-salt --name $DKNAME -t -d $DKIMAGE
+  docker run -v $HOST_MNTDIR/ubuntu:$UBUNTU_MNTDIR -v $HOST_MNTDIR/ubuntu-salt/:$UBUNTU_SALTDIR --name $DKNAME -t -d $DKIMAGE
   docker exec $DKNAME apt-mirror
   take_time
 
@@ -112,13 +122,15 @@ function ubuntu_repo () {
   echo "# Fetching Saltstack repos... #"
   echo "# ########################### #"
   URL="https://repo.saltstack.com/apt/ubuntu"
-  SALTMNT=$MNTDEST"/ubuntu-salt"
-  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/12.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/12.04/ &'
-  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/14.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/14.04/ &'
-  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/16.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/16.04/ &'
-  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$SALTMNT'/18.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/18.04/ &'
-  docker exec -d $DKNAME /bin/sh -c 'nohup /var/spool/apt-mirror/var/clean.sh'
-  docker exec $DKNAME /bin/sh -c 'wait'
+
+  # Download Saltstack repository. Broken down to increase download speed.
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$UBUNTU_SALTDIR'12.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/12.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$UBUNTU_SALTDIR'14.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/14.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$UBUNTU_SALTDIR'16.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/16.04/ &'
+  docker exec -d $DKNAME /bin/sh -c 'nohup wget -P '$UBUNTU_SALTDIR'18.04/ -m -N -nH --cut-dirs=3 -np -R "index.*" '$URL'/18.04/ &'
+
+  docker exec -d $DKNAME /bin/sh -c 'nohup /var/spool/apt-mirror/var/clean.sh'  # Cleaning up Ubuntu repository.
+  docker exec $DKNAME /bin/sh -c 'wait'                                         # Wait until all wget commands have finished.
   take_time
 }
 
@@ -150,12 +162,12 @@ function do_cleanup () {
   echo "# ################################## #"
   echo "# Setting user and file permissions. #"
   echo "# ################################## #"
-  find /opt/os/mirror/ -type d -print0 | xargs -0 chmod 655
-  find /opt/os/mirror/ -type f -print0 | xargs -0 chmod 644
-  chown -R root: /opt/os/mirror/*
-  docker stop $DKNAME
-  docker system prune -f --all
-  rm -f $WORKDIR/$DKNAME
+  find $HOST_MNTDIR -type d -print0 | xargs -0 chmod 655        # Set mode 655 for all directorys.
+  find $HOST_MNTDIR -type f -print0 | xargs -0 chmod 644        # Set mode 644 for all files.
+  chown -R root: /opt/os/mirror/*                               # Set user as root and group as root.
+  docker stop $DKNAME                                           # Stop the docker image
+  docker system prune -f --all                                  # Cleanup all docker images
+  rm -f $WORKDIR/$DKNAME                                        # Remove the docker file.
   take_time
 }
 
@@ -170,33 +182,28 @@ check_comp
 case $DISTRIB in
 
   ubuntu)
-    ubuntu_docker
-    build_docker
-    ubuntu_repo
+    ubuntu_docker       # Build our docker file.
+    build_docker        # Build our docker image.
+    ubuntu_repo         # Download Ubuntu repository and Saltstack repository.
   ;;
 
   centos)
-    centos_docker
-    build_docker
-    SECONDS=0
-    docker run -v $MNTPATH:$MNTDEST --name $DKNAME -t -d $DKIMAGE
-    DPATH="/var/www/html/centos/$VERSION"
-    mkdir -p $DPATH
+    centos_docker       # Build our docker file.
+    build_docker        # Build our docker image.
+    docker run -v $HOST_MNTDIR/centos/:$CENTOS_MNTDIR --name $DKNAME -t -d $DKIMAGE     # Run our docker and mount filesystems.
+    DOWNLAOD_DIR=$CENTOS_MNTDIR$VERSION                                         # Set download directory
 
     # Download base packages
-    centos_repo base $DPATH
-    centos_repo centosplus $DPATH
-    centos_repo extras $DPATH
-    centos_repo updates $DPATH
-    centos_repo epel $DPATH
-
-    # Download salt-stack repo.
-    centos_repo salt-latest $DPATH
+    centos_repo base $DOWNLAOD_DIR              # Download base repository.
+    centos_repo centosplus $DOWNLAOD_DIR        # Download centosplus repository.
+    centos_repo extras $DOWNLAOD_DIR            # Download extras repository.
+    centos_repo updates $DOWNLAOD_DIR           # Download updates repository.
+    centos_repo epel $DOWNLAOD_DIR              # Download epel repository.
+    centos_repo salt-latest $DOWNLAOD_DIR       # Download Saltstack repository.
 
     # Copy GPG keys for the repositorys.
-    docker exec $DKNAME /bin/sh -c 'mkdir -p '$DPATH'/GPG-keys/'
-    docker exec $DKNAME /bin/sh -c 'rsync -avp /etc/pki/rpm-gpg/* '$DPATH'/GPG-keys/'
-    take_time
+    docker exec $DKNAME /bin/sh -c 'mkdir -p '$DOWNLAOD_DIR'/GPG-keys/'
+    docker exec $DKNAME /bin/sh -c 'rsync -avp /etc/pki/rpm-gpg/* '$DOWNLAOD_DIR'/GPG-keys/'
   ;;
 esac
 
