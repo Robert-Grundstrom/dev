@@ -75,18 +75,18 @@ function build_docker () {
 # ############################ #
 function centos_repo () {
    REPOID=$1            # What repository to download.
-   DOWNLAOD_DIR=$2      # Download path for the docker.
+   DOWNLOAD_DIR=$2      # Download path for the docker.
 
    # Tell docker image to download the repository.
-   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$DOWNLAOD_DIR
+   docker exec $DKNAME reposync -g -l -d -m --repoid=$REPOID --newest-only --download-metadata --download_path=$DOWNLOAD_DIR
    echo ""
 
    # Clean up of old packets if needed.
-   docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 5 '$DOWNLAOD_DIR/$REPOID') 2>&1 /dev/null'
+   docker exec $DKNAME /bin/sh -c 'rm -f $(/usr/bin/repomanage -ock 5 '$DOWNLOAD_DIR/$REPOID') 2>&1 /dev/null'
 
    # Build the repository
-   touch $DOWNLAOD_DIR/$REPOID/comps.xml
-   docker exec $DKNAME createrepo -g comps.xml $DOWNLAOD_DIR/$REPOID
+   touch $DOWNLOAD_DIR/$REPOID/comps.xml
+   docker exec $DKNAME createrepo -g comps.xml $DOWNLOAD_DIR/$REPOID
 }
 
 
@@ -191,19 +191,19 @@ case $DISTRIB in
     centos_docker       # Build our docker file.
     build_docker        # Build our docker image.
     docker run -v $HOST_MNTDIR/centos/:$CENTOS_MNTDIR --name $DKNAME -t -d $DKIMAGE     # Run our docker and mount filesystems.
-    DOWNLAOD_DIR=$CENTOS_MNTDIR$VERSION                                         # Set download directory
+    DOWNLOAD_DIR=$CENTOS_MNTDIR$VERSION                                         # Set download directory
 
     # Download base packages
-    centos_repo base $DOWNLAOD_DIR              # Download base repository.
-    centos_repo centosplus $DOWNLAOD_DIR        # Download centosplus repository.
-    centos_repo extras $DOWNLAOD_DIR            # Download extras repository.
-    centos_repo updates $DOWNLAOD_DIR           # Download updates repository.
-    centos_repo epel $DOWNLAOD_DIR              # Download epel repository.
-    centos_repo salt-latest $DOWNLAOD_DIR       # Download Saltstack repository.
+    centos_repo base $DOWNLOAD_DIR              # Download base repository.
+    centos_repo centosplus $DOWNLOAD_DIR        # Download centosplus repository.
+    centos_repo extras $DOWNLOAD_DIR            # Download extras repository.
+    centos_repo updates $DOWNLOAD_DIR           # Download updates repository.
+    centos_repo epel $DOWNLOAD_DIR              # Download epel repository.
+    centos_repo salt-latest $DOWNLOAD_DIR       # Download Saltstack repository.
 
     # Copy GPG keys for the repositorys.
-    docker exec $DKNAME /bin/sh -c 'mkdir -p '$DOWNLAOD_DIR'/GPG-keys/'
-    docker exec $DKNAME /bin/sh -c 'rsync -avp /etc/pki/rpm-gpg/* '$DOWNLAOD_DIR'/GPG-keys/'
+    docker exec $DKNAME /bin/sh -c 'mkdir -p '$DOWNLOAD_DIR'/GPG-keys/'
+    docker exec $DKNAME /bin/sh -c 'rsync -avp /etc/pki/rpm-gpg/* '$DOWNLOAD_DIR'/GPG-keys/'
   ;;
 esac
 
