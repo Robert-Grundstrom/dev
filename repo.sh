@@ -11,6 +11,7 @@ CENTOS_MNTDIR="/var/www/html/centos/"           # Were CentOS downloads its repo
 HOST_MNTDIR="/opt/os/mirror/"                   # Mount point on the host.
 
 # Salt stack URLs
+CENTOS_PERCONA="https://repo.percona.com/yum/percona-release-latest.noarch.rpm"
 CENTOS_SALTREPO="https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el$VERSION.noarch.rpm"
 UBUNTU_SALTREPO="https://repo.saltstack.com/apt/ubuntu/18.04/amd64/latest"
 
@@ -52,7 +53,7 @@ esac
 function centos_docker () {
 cat << EOT > $WORKDIR/$DKNAME
 FROM $DISTRIB:$VERSION
-RUN yum install -y yum-utils rsync epel-release createrepo $CENTOS_SALTREPO
+RUN yum install -y yum-utils rsync epel-release createrepo $CENTOS_SALTREPO $CENTOS_PERCONA
 RUN rpm --import /etc/pki/rpm-gpg/*
 RUN yum clean all && yum -y update
 EOT
@@ -200,6 +201,11 @@ case $DISTRIB in
     centos_repo updates $DOWNLOAD_DIR           # Download updates repository.
     centos_repo epel $DOWNLOAD_DIR              # Download epel repository.
     centos_repo salt-latest $DOWNLOAD_DIR       # Download Saltstack repository.
+
+    # Percona repository
+    centos_repo percona-release-x86_64 $DOWNLOAD_DIR
+    centos_repo percona-release-noarch $DOWNLOAD_DIR
+    centos_repo percona-release-sources $DOWNLOAD_DIR
 
     # Copy GPG keys for the repositorys.
     docker exec $DKNAME /bin/sh -c 'mkdir -p '$DOWNLOAD_DIR'/GPG-keys/'
