@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Variables
 DISTRIB=$1                                      # Distribution
 VERSION=$2                                      # Version
