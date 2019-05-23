@@ -26,28 +26,28 @@ enabled=1
 gpgcheck=1
 gpgkey=https://mirror.zetup.net/fedora-epel/RPM-GPG-KEY-EPEL-$releasever
 
-[php]
+[remi-php]
 name=Remi's PHP 7.3 RPM repository for Enterprise Linux $releasever - $basearch
 baseurl=https://mirrors.ukfast.co.uk/sites/remi/enterprise/$releasever/php73/$basearch/
 enabled=1
 gpgcheck=1
 gpgkey=https://rpms.remirepo.net/RPM-GPG-KEY-remi
 
-[mysql]
+[oracle-mysql]
 name=MySQL 8.0 Server
 baseurl=http://repo.mysql.com/yum/mysql-8.0-community/el/$releasever/$basearch/
 enabled=1
 gpgcheck=1
 gpgkey=http://repo.mysql.com/RPM-GPG-KEY-mysql
 
-[mysql-connectors]
+[oracle-mysql-connectors]
 name=MySQL Connectors
 baseurl=http://repo.mysql.com/yum/mysql-connectors-community/el/$releasever/$basearch/
 enabled=1
 gpgcheck=1
 gpgkey=http://repo.mysql.com/RPM-GPG-KEY-mysql
 
-[mysql-tools]
+[oracle-mysql-tools]
 name=MySQL Tools
 baseurl=http://repo.mysql.com/yum/mysql-tools-community/el/$releasever/$basearch/
 enabled=1
