@@ -1,0 +1,62 @@
+[base]
+name=CentOS-$releasever - Base
+baseurl=http://mirror.centos.org/centos/$releasever/os/$basearch/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+enabled=1
+
+[updates]
+name=CentOS-$releasever - Updates
+baseurl=http://mirror.centos.org/centos/$releasever/updates/$basearch/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+enabled=1
+
+[extras]
+name=CentOS-$releasever - Extras
+baseurl=http://mirror.centos.org/centos/$releasever/extras/$basearch/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+enabled=1
+
+[epel]
+name=Extra Packages for Enterprise Linux $releasever - $basearch
+baseurl=https://mirror.zetup.net/fedora-epel/$releasever/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://mirror.zetup.net/fedora-epel/RPM-GPG-KEY-EPEL-$releasever
+
+[php]
+name=Remi's PHP 7.3 RPM repository for Enterprise Linux $releasever - $basearch
+baseurl=https://mirrors.ukfast.co.uk/sites/remi/enterprise/$releasever/php73/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://rpms.remirepo.net/RPM-GPG-KEY-remi
+
+[mysql]
+name=MySQL 8.0 Server
+baseurl=http://repo.mysql.com/yum/mysql-8.0-community/el/$releasever/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=http://repo.mysql.com/RPM-GPG-KEY-mysql
+
+[mysql-connectors]
+name=MySQL Connectors
+baseurl=http://repo.mysql.com/yum/mysql-connectors-community/el/$releasever/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=http://repo.mysql.com/RPM-GPG-KEY-mysql
+
+[mysql-tools]
+name=MySQL Tools
+baseurl=http://repo.mysql.com/yum/mysql-tools-community/el/$releasever/$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=http://repo.mysql.com/RPM-GPG-KEY-mysql
+
+[salt-latest]
+name=SaltStack Latest Release Channel for RHEL/Centos $releasever
+baseurl=https://repo.saltstack.com/yum/redhat/$releasever/$basearch/latest
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.saltstack.com/yum/redhat/$releasever/$basearch/latest/SALTSTACK-GPG-KEY.pub
